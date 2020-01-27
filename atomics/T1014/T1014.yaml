@@ -86,5 +86,6 @@ atomic_tests:
 
   executor:
     name: command_prompt
+    elevation_required: true
     command: |
       #{puppetstrings_file} #{driver_file}
