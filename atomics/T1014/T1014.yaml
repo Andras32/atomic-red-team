@@ -53,12 +53,38 @@ atomic_tests:
     - windows
 
   input_arguments:
-    driver_path:
+    driver_file:
       description: Path to the vulnerable driver
       type: Path
-      default: C:\Drivers\driver.sys
-      
+      default: C:\T1014\Capcom.sys
+    driver_url:
+      description: URL to retrieve capcom.sys
+      type: Url
+      default: https://github.com/FuzzySecurity/Capcom-Rootkit/raw/c887fb87b1a1294fc43920d6694868cd7a24eacb/Driver/Capcom.sys
+    driver_hash:
+      description: File hash of capcom.sys
+      type: String
+      default: DA6CA1FB539F825CA0F012ED6976BAF57EF9C70143B7A1E88B4650BF7A925E24
+    puppetstrings_file:
+      description: Path to puppetstrings
+      type: Path
+      default: C:\T1014\puppetstrings.exe
+    puppetstrings_url:
+      description: URL to retrieve puppetstrings.exe
+      type: Url
+      default: https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1014/bin/puppetstrings.exe?raw=true
+
+  dependency_executor_name: powershell
+  dependencies: 
+    - description: |
+        T1012 must have access to #{puppetstrings_file} and #{driver_file}
+      prereq_command: | # commands to check if prerequisites for running this test are met. For the "command_prompt" executor, if any command returns a non-zero exit code, the pre-requisites are not met. For the "powershell" executor, all commands are run as a script block and the script block must return 0 for success.
+        if ((Test-Path "#{driver_file}") -and (Test-Path "#{puppetstrings_file}")) {exit 0} else {exit 1}
+      get_prereq_command: | # commands to meet this prerequisite or a message describing how to meet this prereq
+        if ((Test-Path "#{driver_file}") -eq $false) {Invoke-WebRequestVerifyHash "#{driver_url}" "#{driver_file}" #{driver_hash}}
+        if ((Test-Path "#{puppetstrings_file}") -eq $false) {Invoke-WebRequest "#{puppetstrings_url}" -OutFile "#{puppetstrings_file}"}
+
   executor:
     name: command_prompt
     command: |
-      puppetstrings #{driver_path}
+      #{puppetstrings_file} #{driver_file}
