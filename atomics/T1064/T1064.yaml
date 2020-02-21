@@ -45,3 +45,59 @@ atomic_tests:
       C:\Windows\system32\cmd.exe /Q /c #{script_to_create} 
     cleanup_command: |
       del #{script_to_create}
+
+- name: OSTap Style Macro Delivery
+  description: |
+    This test uses a COM object to emulate OSTap style Microsoft Office VBS Macro execution.
+    The COM object allows the test to execute without a .docm or .xlsm file dependency
+    References:
+      https://www.computerweekly.com/news/252470091/TrickBot-Trojan-switches-to-stealthy-Ostap-downloader
+
+  supported_platforms:
+    - windows
+
+  input_arguments:
+    msword_version:
+      description: |
+        msword version number found in "HKEY_CURRENT_USER\SOFTWARE\Microsoft\Office" default: 16.0
+      type: String
+      default: "16.0"
+    jse_path:
+      description: |
+        #TODO
+      type: String
+      default: 'C:\Users\Public\art.jse'
+    macro_code:
+      description: |
+        #TODO
+      type: String
+      default: | 
+        "@`"`r`nSub Test()`r`n`t`tOpen `"`$jse_path`" For Output As #1`r`n`t`tWrite #1, `"WScript.Quit`"`r`n`t`tClose #1`r`n`t`tShell`$ `"cscript.exe `$jse_path`"`r`nEnd Sub`r`n`"@`r`n"
+
+  dependency_executor_name: powershell # (optional) The executor for the prereq commands, defaults to the same executor used by the attack commands
+  dependencies: # (optional)
+    - description: |
+        Test Requires MS Word to be installed and have been run previously. Run -GetPrereqs to run msword and build dependant registry keys
+      prereq_command: |
+        If (Test-Path HKCU:SOFTWARE\Microsoft\Office\#{msword_version}) { exit 0 } else { exit 1 }
+      get_prereq_command: | # commands to meet this prerequisite or a message describing how to meet this prereq
+        $msword = New-Object -ComObject word.application
+        Stop-Process -Name WINWORD
+
+  executor:
+    name: powershell
+    elevation_required: false # indicates whether command must be run with admin privileges. If the elevation_required attribute is not defined, the value is assumed to be false
+    command: |
+      Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\#{msword_version}\Word\Security\' -Name 'AccessVBOM' -Value 1
+      $jse_path = "#{jse_path}"
+      $macro_code = #{macro_code}
+      $word = New-Object -ComObject "Word.Application"
+      $doc = $word.Documents.Add()
+      $word.ActiveDocument.VBProject.VBComponents.Add(1)
+      $word.VBE.ActiveVBProject.VBComponents.Item("Module1").CodeModule.AddFromString($macro_code)
+      $word.Run("Test")
+      $doc.Close(0)
+      $word.Quit()
+    cleanup_command: |
+      Remove-Item #{jse_path}
+      Remove-ItemProperty -Path 'HKCU:\Software\Microsoft\Office\#{msword_version}\Word\Security\' -Name 'AccessVBOM'
